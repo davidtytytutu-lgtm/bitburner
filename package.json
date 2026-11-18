@@ -1,12 +1,11 @@
 
 {
-  "name": "bitburner-server",
-  "version": "2.0.0",
-  "description": "Bitburner Remote API WebSocket Server",
+  "name": "bitburner-remote-server",
+  "version": "1.0.0",
+  "description": "Open source Bitburner Remote API WebSocket server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=20"
