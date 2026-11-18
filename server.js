@@ -4,8 +4,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 
 const PORT = process.env.PORT || 10000;
 const HOST = "0.0.0.0";
-
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 
 let gameSocket = null;
 let requestId = 0;
@@ -26,7 +25,7 @@ const METHODS = [
     "getAllServers"
 ];
 
-// HTTP JSON response
+// JSON response
 function json(res, status, data) {
     res.writeHead(status, {
         "Content-Type": "application/json; charset=utf-8",
@@ -38,15 +37,14 @@ function json(res, status, data) {
     res.end(JSON.stringify(data));
 }
 
-// Remote API connection status
+// Connection status
 function isConnected() {
     return gameSocket?.readyState === WebSocket.OPEN;
 }
 
-// Send JSON-RPC request to Bitburner
+// JSON-RPC
 function sendRPC(method, params = {}) {
     return new Promise((resolve, reject) => {
-
         if (!isConnected()) {
             return reject(new Error("Bitburner is offline"));
         }
@@ -74,7 +72,6 @@ function sendRPC(method, params = {}) {
                 clearTimeout(timeout);
                 resolve(result);
             },
-
             reject: error => {
                 clearTimeout(timeout);
                 reject(error);
@@ -98,6 +95,7 @@ const server = http.createServer((req, res) => {
         return json(res, 204, {});
     }
 
+    // HOME
     if (req.url === "/" && req.method === "GET") {
         return json(res, 200, {
             name: "BITBURNER REMOTE SERVER",
@@ -108,6 +106,7 @@ const server = http.createServer((req, res) => {
         });
     }
 
+    // STATUS
     if (req.url === "/api/status" && req.method === "GET") {
         return json(res, 200, {
             status: "online",
@@ -119,6 +118,30 @@ const server = http.createServer((req, res) => {
         });
     }
 
+    // PING
+    if (req.url === "/api/ping" && req.method === "GET") {
+        return json(res, 200, {
+            status: "pong",
+            server: "BITBURNER REMOTE SERVER",
+            gameConnected: isConnected(),
+            timestamp: Date.now()
+        });
+    }
+
+    // WAKE UP
+    if (req.url === "/api/wakeup" && req.method === "GET") {
+        console.log("[WAKEUP] Server wake-up requested");
+
+        return json(res, 200, {
+            status: "awake",
+            message: "BITBURNER SERVER IS AWAKE",
+            gameConnected: isConnected(),
+            uptime: process.uptime(),
+            timestamp: Date.now()
+        });
+    }
+
+    // JSON-RPC API
     if (req.url === "/api/rpc" && req.method === "POST") {
 
         let body = "";
@@ -162,8 +185,10 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 404
     return json(res, 404, {
-        error: "Not Found"
+        error: "Not Found",
+        path: req.url
     });
 });
 
@@ -173,7 +198,7 @@ const wss = new WebSocketServer({
     maxPayload: 1024 * 1024
 });
 
-// HTTP -> WebSocket upgrade
+// Upgrade HTTP -> WebSocket
 server.on("upgrade", (req, socket, head) => {
 
     if (req.url !== "/") {
@@ -192,7 +217,6 @@ wss.on("connection", ws => {
 
     console.log("[WSS] New Bitburner connection");
 
-    // One active game connection at a time
     if (gameSocket && gameSocket !== ws) {
         gameSocket.close(4000, "New connection");
     }
@@ -250,7 +274,7 @@ wss.on("connection", ws => {
     });
 });
 
-// Heartbeat
+// WebSocket heartbeat
 const heartbeat = setInterval(() => {
 
     if (isConnected()) {
@@ -274,6 +298,7 @@ server.listen(PORT, HOST, () => {
     console.log("VERSION:", VERSION);
     console.log("================================");
     console.log("");
+
 });
 
 server.on("close", () => {
