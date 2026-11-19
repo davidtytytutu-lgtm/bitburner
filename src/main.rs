@@ -4,8 +4,8 @@ use axum::{
         State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::{HeaderMap, Method},
-    response::{IntoResponse, Response},
+    http::Method,
+    response::Response,
     routing::get,
     Json,
     Router,
@@ -23,7 +23,7 @@ use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 
 const SERVER_NAME: &str = "Bitburner Rust Server";
-const VERSION: &str = "1.1.1";
+const VERSION: &str = "1.1.2";
 
 struct AppState {
     started_at: Instant,
@@ -43,22 +43,14 @@ fn connected(state: &AppState) -> bool {
     state.connections.load(Ordering::SeqCst) > 0
 }
 
-// HTTP root or WebSocket upgrade on /
-async fn root(
-    State(state): State<SharedState>,
-    ws: Option<WebSocketUpgrade>,
-) -> Response {
-    if let Some(ws) = ws {
-        return ws.on_upgrade(move |socket| handle_socket(socket, state))
-            .into_response();
-    }
-
+// HTTP /
+async fn root(State(state): State<SharedState>) -> Json<Value> {
     Json(json!({
         "name": SERVER_NAME,
         "status": "online",
         "version": VERSION,
         "language": "Rust",
-        "websocket": "/",
+        "websocket": "/ws",
         "gameConnected": connected(&state),
         "endpoints": [
             "/api/ping",
@@ -67,19 +59,18 @@ async fn root(
             "/api/info",
             "/ws"
         ]
-    })).into_response()
+    }))
 }
 
-// Dedicated WebSocket endpoint /ws
+// WebSocket /ws
 async fn websocket_route(
     State(state): State<SharedState>,
     ws: WebSocketUpgrade,
 ) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
-        .into_response()
 }
 
-// Ping API
+// PING
 async fn ping(State(state): State<SharedState>) -> Json<Value> {
     Json(json!({
         "status": "pong",
@@ -89,7 +80,7 @@ async fn ping(State(state): State<SharedState>) -> Json<Value> {
     }))
 }
 
-// Server status
+// STATUS
 async fn status(State(state): State<SharedState>) -> Json<Value> {
     Json(json!({
         "status": "online",
@@ -102,7 +93,7 @@ async fn status(State(state): State<SharedState>) -> Json<Value> {
     }))
 }
 
-// Wake-up route
+// WAKEUP
 async fn wakeup(State(state): State<SharedState>) -> Json<Value> {
     println!("[WAKEUP] Request received");
 
@@ -115,7 +106,7 @@ async fn wakeup(State(state): State<SharedState>) -> Json<Value> {
     }))
 }
 
-// Information
+// INFO
 async fn info(State(state): State<SharedState>) -> Json<Value> {
     Json(json!({
         "name": SERVER_NAME,
@@ -142,24 +133,21 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
     while let Some(message) = socket.next().await {
         match message {
             Ok(Message::Text(text)) => {
-                println!("[WS] Received text ({} bytes)", text.len());
+                println!("[WS] Received: {}", text);
 
-                // Parse JSON if possible, without echoing or changing the protocol.
-                match serde_json::from_str::<Value>(&text) {
-                    Ok(value) => {
-                        let method = value.get("method")
-                            .and_then(Value::as_str)
-                            .unwrap_or("unknown");
+                // Parse incoming JSON for diagnostics
+                if let Ok(value) = serde_json::from_str::<Value>(&text) {
+                    let method = value
+                        .get("method")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown");
 
-                        let id = value.get("id")
-                            .map(Value::to_string)
-                            .unwrap_or_else(|| "none".to_string());
+                    let id = value
+                        .get("id")
+                        .map(Value::to_string)
+                        .unwrap_or_else(|| "none".to_string());
 
-                        println!("[WS] JSON method={} id={}", method, id);
-                    }
-                    Err(_) => {
-                        println!("[WS] Received non-JSON text");
-                    }
+                    println!("[WS] Method: {} | ID: {}", method, id);
                 }
             }
 
@@ -179,7 +167,7 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
             }
 
             Ok(Message::Binary(data)) => {
-                println!("[WS] Binary message ({} bytes)", data.len());
+                println!("[WS] Binary message: {} bytes", data.len());
             }
 
             Err(error) => {
@@ -236,7 +224,7 @@ async fn main() {
     println!("========================================");
     println!("Version: {}", VERSION);
     println!("Port: {}", port);
-    println!("WebSocket: / and /ws");
+    println!("WebSocket: /ws");
     println!("Status: ONLINE");
 
     axum::serve(listener, app)
