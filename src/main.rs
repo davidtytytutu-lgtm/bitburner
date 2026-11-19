@@ -399,14 +399,10 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
                 break;
             }
 
-            // ------------------------------------------------
-            // OTHER MESSAGE
-            // ------------------------------------------------
-            Ok(_) ) => {}
+                       // OTHER MESSAGE
+            Ok(_) => {}
 
-            // ------------------------------------------------
             // ERROR
-            // ------------------------------------------------
             Err(error) => {
                 println!("[WS] Error: {}", error);
                 break;
@@ -422,7 +418,6 @@ async fn handle_socket(mut socket: WebSocket, state: SharedState) {
         state.connections.load(Ordering::SeqCst)
     );
 }
-
 // ============================================================
 // HTTP API
 // ============================================================
